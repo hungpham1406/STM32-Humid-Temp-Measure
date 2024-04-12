@@ -23,6 +23,7 @@
 /* USER CODE BEGIN Includes */
 #include "i2c-lcd.h"
 #include "stdio.h"
+#include "DHT11.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -58,7 +59,12 @@ static void MX_DMA_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_TIM2_Init(void);
 static void MX_TIM3_Init(void);
+
 /* USER CODE BEGIN PFP */
+/********************************DHT11**********************************/
+void display_Temp(float Temp);
+void display_Humid(float RH);
+
 /********************************DS3231**********************************/
 #define DS3231_ADDRESS 0xD0
 
@@ -82,6 +88,26 @@ typedef struct {
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+/********************************DHT11**********************************/
+uint8_t RHI, RHD, TCI, TCD, SUM;
+float tCelsius = 0;
+float tFahrenheit = 0;
+float RH = 0;
+
+void display_Temp(float Temp) {
+	char str[10];
+	lcd_put_cur(0, 0);
+	sprintf(str, "T:%.1f*C", Temp);
+	lcd_send_string(str);
+}
+
+void display_Humid(float RH) {
+	char str[10];
+	lcd_put_cur(0, 9);
+	sprintf(str, "H:%.1f", RH);
+	lcd_send_string(str);
+}
+
 /********************************DS3231**********************************/
 TIME time;
 
@@ -178,7 +204,25 @@ int main(void)
 
   while (1)
   {
-    /* USER CODE END WHILE */
+	  display_Temp(tCelsius);
+	  display_Humid(RH);
+
+	  if(DHT11_Start()) {
+		  RHI = DHT11_Read(); // Relative humidity integral
+		  RHD = DHT11_Read(); // Relative humidity decimal
+		  TCI = DHT11_Read(); // Celsius integral
+		  TCD = DHT11_Read(); // Celsius decimal
+		  SUM = DHT11_Read(); // Check sum
+
+		  if(SUM == RHI + RHD + TCI + TCD) {
+			  // Can use RHI and TCI for any purposes if whole number only needed
+			  tCelsius = (float)TCI + (float)(TCD/10.0);
+			  tFahrenheit = tCelsius * 9/5 + 32;
+			  RH = (float)RHI + (float)(RHD/10.0);
+			  // Can use tCelsius, tFahrenheit and RH for any purposes
+		  }
+	  }
+
 	  get_Time();
 	  sprintf(time_buffer, "%02d:%02d", time.hour, time.minute);
 	  lcd_put_cur(1, 0);
@@ -187,6 +231,10 @@ int main(void)
 	  sprintf(time_buffer, "%02d-%02d-20%02d", time.dayOfMonth, time.month, time.year);
 	  lcd_put_cur(1, 6);
 	  lcd_send_string(time_buffer);
+
+	  HAL_Delay(1000);
+    /* USER CODE END WHILE */
+
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
