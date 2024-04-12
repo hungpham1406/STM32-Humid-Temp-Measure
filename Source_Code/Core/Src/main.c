@@ -21,7 +21,8 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "i2c-lcd.h"
+#include "stdio.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -58,11 +59,67 @@ static void MX_I2C1_Init(void);
 static void MX_TIM2_Init(void);
 static void MX_TIM3_Init(void);
 /* USER CODE BEGIN PFP */
+/********************************DS3231**********************************/
+#define DS3231_ADDRESS 0xD0
 
+uint8_t dec_To_Bcd(int val);
+int bcd_To_Dec(uint8_t val);
+
+void set_Time(uint8_t sec, uint8_t min, uint8_t hour, uint8_t dow, uint8_t dom,
+			  uint8_t month, uint8_t year);
+void get_Time(void);
+
+typedef struct {
+	uint8_t second;
+	uint8_t minute;
+	uint8_t hour;
+	uint8_t dayOfWeek;
+	uint8_t dayOfMonth;
+	uint8_t month;
+	uint8_t year;
+} TIME;
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+/********************************DS3231**********************************/
+TIME time;
+
+uint8_t dec_To_Bcd(int val) {
+	return (uint8_t)((val/10*16) + (val%10));
+}
+
+int bcd_To_Dec(uint8_t val) {
+	return (int)((val/16*10) + (val%16));
+}
+
+void set_Time(uint8_t sec, uint8_t min, uint8_t hour, uint8_t dow, uint8_t dom,
+			  uint8_t month, uint8_t year) {
+	uint8_t set_time_buffer[7];
+	set_time_buffer[0] = dec_To_Bcd(sec);
+	set_time_buffer[1] = dec_To_Bcd(min);
+	set_time_buffer[2] = dec_To_Bcd(hour);
+	set_time_buffer[3] = dec_To_Bcd(dow);
+	set_time_buffer[4] = dec_To_Bcd(dom);
+	set_time_buffer[5] = dec_To_Bcd(month);
+	set_time_buffer[6] = dec_To_Bcd(year);
+
+	HAL_I2C_Mem_Write(&hi2c1, DS3231_ADDRESS, 0x00, 1, set_time_buffer, 7, 1000);
+}
+
+void get_Time(void) {
+	uint8_t get_time_buffer[7];
+	HAL_I2C_Mem_Read(&hi2c1, DS3231_ADDRESS, 0x00, 1, get_time_buffer, 7, 1000);
+
+	time.second 	= bcd_To_Dec(get_time_buffer[0]);
+	time.minute 	= bcd_To_Dec(get_time_buffer[1]);
+	time.hour 		= bcd_To_Dec(get_time_buffer[2]);
+	time.dayOfWeek 	= bcd_To_Dec(get_time_buffer[3]);
+	time.dayOfMonth = bcd_To_Dec(get_time_buffer[4]);
+	time.month 		= bcd_To_Dec(get_time_buffer[5]);
+	time.year 		= bcd_To_Dec(get_time_buffer[6]);
+}
+
 
 /* USER CODE END 0 */
 
@@ -99,15 +156,37 @@ int main(void)
   MX_TIM2_Init();
   MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
+  HAL_TIM_Base_Start(&htim3);
+  HAL_TIM_Base_Start_IT(&htim3);
 
+  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+
+  lcd_init();
+  lcd_put_cur(0, 0);
+
+  lcd_send_string("Hello world!");
+
+  HAL_Delay(4000);
+  lcd_clear();
+
+//  set_Time(30, 12, 21, 6, 12, 4, 24);
+  char time_buffer[30];
+
   while (1)
   {
     /* USER CODE END WHILE */
+	  get_Time();
+	  sprintf(time_buffer, "%02d:%02d", time.hour, time.minute);
+	  lcd_put_cur(1, 0);
+	  lcd_send_string(time_buffer);
 
+	  sprintf(time_buffer, "%02d-%02d-20%02d", time.dayOfMonth, time.month, time.year);
+	  lcd_put_cur(1, 6);
+	  lcd_send_string(time_buffer);
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
